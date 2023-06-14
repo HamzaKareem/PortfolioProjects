@@ -1,0 +1,30 @@
+Company Theme Yellow and Black
+
+
+Page 1 
+
+Market Cap by Date
+
+Cards
+	High
+	Low
+	MarketCap
+	Volume
+
+Need Slicer for Date Range and Currency
+
+
+
+
+Page 2 
+
+High & Low & Avrage by Date
+Open & Close by Date
+
+
+Need Slicer for Currency Dates should Apply from page 1
+
+
+Total Market Cap Pie Chart for Top 5 Currencies 
+
+
