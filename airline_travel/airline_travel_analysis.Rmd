@@ -1,0 +1,312 @@
+---
+title: "Airline Travel Analysis"
+author: "Hamza Kareem"
+date: "2023-06-08"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+## Loading Libraries
+```{r}
+library("dplyr")
+library("DBI")
+library("RSQLite")
+library("ggplot2")
+```
+
+
+##  Creating connection to SQLite Database file
+```{r}
+travel = dbConnect(SQLite(),"C:/Users/hamza/Documents/mgt585/data/travel.sqlite")
+```
+
+
+## Extracting tables from the connection
+```{r}
+## Extracting Tables
+dbListTables(travel)
+#aircrafts table
+aircrafts = tbl(travel, "aircrafts_data")
+aircrafts 
+aircrafts_df = collect(aircrafts)
+head(aircrafts_df)
+
+
+#airports table
+airports = tbl(travel,"airports_data")
+airports
+airports_df = collect(airports)
+head(airports_df)
+
+
+#boarding_passes
+boardpass = tbl(travel, "boarding_passes")
+boardpass
+boardpass_df = collect(boardpass)
+head(boardpass_df)
+#exporting table into csv
+# write.csv(boardpass_df, file = "boardpass.csv")
+
+
+
+#booking
+booking = tbl(travel, "bookings")
+booking
+booking_df = collect(booking)
+head(booking_df)
+#exporting table into csv
+#write.csv(booking_df, file = "booking.csv")
+
+
+#flights
+flight = tbl(travel, "flights")
+flight
+flight_df=collect(flight)
+head(flight_df)
+#exporting table into csv
+#write.csv(flight_df, file = "flights.csv")
+
+
+
+#seats
+seat = tbl(travel,"seats")
+seat
+seats_df=collect(seat)
+head(seats_df)
+#exporting tale into csv
+#write.csv(seats_df,file = "seats.csv")
+
+
+
+#ticket_flights
+ticket=tbl(travel, "ticket_flights")
+ticket
+ticketflight_df=collect(ticket)
+head(ticketflight_df)
+#exporting table into csv
+#write.csv(ticketflight_df, file = "tickets_flights.csv")
+
+
+#ticket
+planeticket = tbl(travel, "tickets")
+planeticket
+tickets_df = collect(planeticket)
+head(tickets_df)
+#exporting table into csv
+#write.csv(tickets_df, file = "tickets.csv")
+```
+
+
+## Data Cleaning
+```{r}
+# The FOLLOWING is the way to check for missing values in dataset. but there are no missing value in any of the tables. 
+# Count the number of missing values in each column
+missing_values <- aircrafts_df %>%
+  is.na() %>%
+  colSums()
+
+# Print the number of missing values in each column
+print(missing_values)
+
+```
+
+
+## QUESTION NO 1
+```{r}
+# HOW MANY AIRPLANES HAVE MORE THAN 100 SEATS? USING SQL
+
+count_seats = "SELECT aircraft_code, COUNT(*) as num_seats FROM seats
+                        GROUP BY aircraft_code 
+                        HAVING num_seats > 100 
+                        ORDER BY num_seats DESC"
+dbGetQuery(travel, count_seats)
+count_seats= tbl(travel, sql(count_seats)) %>% collect()
+```
+
+
+## QUESTION NO 2
+```{r}
+# LIST THE AEROPLANE WITH THE TOTAL NO OF SEATS IN DESC ORDER
+count_seats1 = "SELECT aircraft_code, COUNT(*) as num_seats FROM seats
+                        GROUP BY aircraft_code 
+                        ORDER BY num_seats DESC"
+dbGetQuery(travel, count_seats1)
+count_seats1= tbl(travel, sql(count_seats1)) %>% collect()
+```
+
+
+## QUESTION NO 3
+```{r}
+# HOW THE NUMBER OD TICKETS BOOKED AND TOAL AMOUNT EARNED CHANGED WITH THE TIME?
+count_ticket = "SELECT *
+  FROM ticket
+INNERJOIN booking
+ON ticket.book_ref=booking.book_ref"
+
+
+# Convert the `book_date` column to a date type
+booking_df$book_date <- as.Date(booking_df$book_date)
+
+# Create a new column called `date` that is the day of the month
+booking_df$date <- format(booking_df$book_date)
+
+# Group the data frame by `date` and count the number of tickets
+booking_df_count <- booking_df %>%
+  group_by(date) %>%
+  summarise(num_tickets = n())
+
+# Plot the number of tickets by date
+ggplot(booking_df_count, aes(x = date, y = num_tickets)) +
+  geom_point(shape = 21, fill = "lightblue", size = 3) +
+  theme_bw() +
+  labs(x = "Date", y = "Number of Tickets")
+
+
+
+
+## AMOUNT EARNED
+
+earnings = "select * from bookings limit 10"
+dbGetQuery(travel, earnings)
+tickets_rev= tbl(travel, sql(earnings)) %>% collect()
+# convert the book_date column to a data object
+booking_df$book_date=as.Date(booking_df$book_date)
+# Create a new column called `date`
+booking_df$date <- booking_df$book_date
+
+# Group the data by `date` and sum the `total_amount` column
+y <- booking_df %>%
+  group_by(date) %>%
+  summarise(total_amount = sum(total_amount))
+
+# Create a plot
+ggplot(data = y, aes(x = date, y = total_amount)) +
+  geom_point(shape = 19, size = 2, colour = "blue") +
+  labs(x = "Date", y = "Total Amount") +
+  theme_bw()
+```
+
+
+## QUESTION NO 4
+```{r}
+# CALCULATE AVERAGE CHARGES FOR EACH AIRCRAFT WITH DIFFERENT FARE CONDITIONS?
+avg_charges = "SELECT fare_conditions, aircraft_code, AVG(amount) as avg_amount FROM flights
+                        JOIN ticket_flights
+                        ON ticket_flights.flight_id=flights.flight_id 
+                        GROUP BY aircraft_code, fare_conditions"
+dbGetQuery(travel, avg_charges)
+avg_charges= tbl(travel, sql(avg_charges)) %>% collect()
+#plot
+avg_chargesplot = ggplot(avg_charges, aes(x = aircraft_code, y = avg_amount, fill = fare_conditions)) +
+  geom_bar(stat = "identity") +
+  theme_bw() +
+  labs(x = "Aircraft Code", y = "Average Amount", fill = "Fare Conditions")
+avg_chargesplot
+```
+
+
+## QUESTION NO 5
+```{r}
+# FOR EACH AIRCRAFT, CALCUALTE THE TOTAL REVENUE PER YEAR AND THE AVERAGE REVENUE PER TICKET.
+tickets_rev = "SELECT aircraft_code, COUNT(*) as ticket_count, SUM(amount) as total_revenue FROM flights
+                  JOIN ticket_flights
+                  ON ticket_flights.flight_id=flights.flight_id 
+                  GROUP BY aircraft_code"
+dbGetQuery(travel, tickets_rev)
+tickets_rev= tbl(travel, sql(tickets_rev)) %>% collect()
+
+# calculate the average revenue per ticket
+tickets_rev$avg_tickets_rev = tickets_rev$total_revenue/tickets_rev$ticket_count
+print(tickets_rev)
+```
+
+
+## QUESTION NO 6
+```{r}
+# Calculate the average occupancy per aircraft.
+Occupancy_Rate =
+
+  "SELECT a.aircraft_code, AVG(a.seats_count) as booked_seats, b.num_seats, 
+          AVG(a.seats_count)/b.num_seats as occupancy_rate
+          FROM (
+              SELECT aircraft_code, flights.flight_id, COUNT(*) as seats_count
+              FROM boarding_passes
+              INNER JOIN flights 
+              ON boarding_passes.flight_id=flights.flight_id
+              GROUP BY aircraft_code, flights.flight_id
+          ) as a INNER JOIN
+          (
+              SELECT aircraft_code, COUNT(*) as num_seats FROM seats 
+              GROUP BY aircraft_code  
+          ) as b
+          ON a.aircraft_code = b.aircraft_code
+          GROUP BY a.aircraft_code"
+dbGetQuery(travel, Occupancy_Rate)
+Occupancy_Rate= tbl(travel, sql(Occupancy_Rate)) %>% collect()
+# Print the data frame
+print(Occupancy_Rate)
+```
+
+
+
+## QUESTION NO 7
+```{r}
+#CALCUALTE BY HOW MUCH THE TOTAL TURNOVER COULD INCREASE BY GIVING ALL AIRCRAFT HAVE A 10% HIGHER OCCUPANCY RATE?
+# Add a new column 'Inc occupancy rate'
+Occupancy_Rate$`Inc occupancy rate` <- Occupancy_Rate$occupancy_rate + Occupancy_Rate$occupancy_rate * 0.1
+# Print the updated occupancy_rate data frame
+print(Occupancy_Rate )
+
+
+#Total Revenue
+total_revenue <- "SELECT aircraft_code, SUM(amount) as total_revenue FROM ticket_flights
+                                        JOIN flights 
+                                        ON ticket_flights.flight_id=flights.flight_id 
+                                        GROUP BY aircraft_code"
+dbGetQuery(travel, total_revenue)
+total_revenue= tbl(travel, sql(total_revenue)) %>% collect()
+# Joining the total_revenue data with occupancy_rate data
+Occupancy_Rate <- merge(Occupancy_Rate, total_revenue, by = "aircraft_code", all.x = TRUE)
+
+# Calculating the 'Inc Total Annual Turnover' column
+Occupancy_Rate$`Inc Total Annual Turnover` <- (Occupancy_Rate$total_revenue / Occupancy_Rate$occupancy_rate) * Occupancy_Rate$`Inc occupancy rate`
+
+
+# Print the updated occupancy_rate data frame
+print(Occupancy_Rate)
+```
+## CONCLUSION
+```{r}
+#To summarize, airlines that want to maximize profitability must analyze revenue data, such as total revenue per year, average revenue per ticket, and average occupancy per aircraft. By assessing these indicators, airlines can identify areas for improvement and adjust their pricing and route plans.
+
+#One important factor that can improve profitability is a higher occupancy rate. This allows airlines to maximize revenue while minimizing the costs associated with empty seats. Airlines should adjust the price for each aircraft, as both low and high prices can discourage people from buying tickets. The price should be reasonable and reflect the condition and facilities of the aircraft. It should not be too cheap or too expensive.
+
+#It is important to note that boosting occupancy rates should not come at the expense of customer satisfaction or safety. Airlines must strike a balance between the need for profit and the importance of providing high-quality service and upholding safety regulations. By adopting a data-driven approach to revenue analysis and optimization, airlines can achieve long-term success in a highly competitive industry.
+```
+
+
